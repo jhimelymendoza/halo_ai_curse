@@ -5,8 +5,8 @@ import { AppService } from './app.service';
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
-  @Get()
-  getHello( @Query('prompt') prompt: string): Promise<{title:string}  >{
+  @Get('ask')
+  ask(@Query('prompt') prompt: string): Promise<{title:string}  >{
     return this.appService.ask(prompt);
   }
 }
