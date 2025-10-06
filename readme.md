@@ -58,3 +58,5 @@ Once both frontend and backend are running, you can access the chat in your brow
 ```aiignore
 http://localhost:4200/chat
 ```
+
+sample: https://youtu.be/7SVpOuFb9ho
