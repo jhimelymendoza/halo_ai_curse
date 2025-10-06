@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import {TimelineComponent} from './timeline/timeline.component';
 
 export const routes: Routes = [
   {
@@ -8,6 +9,10 @@ export const routes: Routes = [
   {
     path: 'chat',
     loadComponent: () => import('./chat/chat.component').then((c) => c.ChatComponent),
+  },
+  {
+    path: 'timeline',
+    loadComponent: () => import('./timeline/timeline.component').then((c) => c.TimelineComponent),
   },
   {path:'**',redirectTo:'/home'},
 ];

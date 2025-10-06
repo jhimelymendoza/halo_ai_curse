@@ -107,7 +107,87 @@
 
 &__history{
   min-height: 300px;
-  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 2rem;
+  margin-bottom: 4rem;
+  max-height: 400px;
+  overflow-y: auto;
+  .typing-text {
+    color: white;
+    white-space: pre-wrap; // respeta saltos de línea
+    overflow-wrap: break-word;
+    animation: reveal-text 4.5s steps(40) forwards;
+    max-height: 1000px;
+    overflow: hidden;
+  }
+
+  @keyframes reveal-text {
+    from {
+      max-height: 0;
+    }
+    to {
+      max-height: 1000px;
+    }}
+
+  @keyframes blink {
+    from,
+    to {
+      border-color: transparent;
+    }
+    50% {
+      border-color: rgba(255, 255, 255, 0.75);
+    }
+  }
+  img{
+    width: 48px;
+    height: 48px;
+  }
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: white;
+    border-radius: 4px;
+  }
+
+  // Scroll blanco para Firefox
+  scrollbar-width: thin;
+  scrollbar-color: white transparent;
+
+  .chat-bubble {
+    max-width: 70%;
+    padding: 1rem 1.5rem;
+    border-radius: 1.5rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #fff;
+    position: relative;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    text-align: start;
+
+    &--user {
+      align-self: flex-end;
+      background: linear-gradient(to right, #ffffff, #e3e3e3);
+      border-bottom-right-radius: 0.25rem;
+      color:#1D1D1D;
+    }
+
+    &--bot {
+      align-self: flex-start;
+      border-bottom-left-radius: 0.25rem;
+      display: flex;
+      gap: 14px;
+      max-width: 500px;
+    }
+  }
 
 }
       &__me{
@@ -122,9 +202,12 @@
         gap :10px;
         margin-bottom: 20px;
 
+
+
         img{
           flex:2 2 auto;
           cursor: pointer;
+          height: 20px;
 
         }
         textarea{
@@ -140,6 +223,9 @@
           max-height: calc(1.5em * 8);
           line-height: 1.5em;
           box-sizing: border-box;
+
+
+
           @include tablet{
             font-size: 2rem;
           }

@@ -1,74 +1,175 @@
-import { Injectable } from '@nestjs/common';
-import {GoogleGenAI} from '@google/genai';
-import {InjectConnection, InjectModel} from "@nestjs/mongoose";
-import {Connection, Model} from "mongoose";
-import {Project} from "./project/project.shcema";
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Chat, Content, GoogleGenAI } from '@google/genai';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, Model } from 'mongoose';
+import { Project } from './project/project.schema';
+import { Skills } from './project/skills.schema';
+import cosineSimilarity from 'compute-cosine-similarity';
+import {
+  getInstructions, getIsSkillQuestionPrompt,
+  getSkillComparisonIntentPrompt,
+} from './default_prompts/default.prompts';
 
-const MODEL = 'gpt-4.1';
+const MODEL = 'gemini-2.0-flash-001';
+const EMBEDDING_MODEL = 'gemini-embedding-001';
 const TEMPERATURE = 0.5;
-const INSTRUCTIONS = `Eres el asistente de una portafolio de un desarrollador llamado Johan Himely mendoza.
-        No puedes dar otra informacion que no sea relacionado con su trabajo.
-        La bibliografia de johan es esta: es un desarrollador de software con más de ocho años de experiencia en tecnologías backend como .NET y frontend con Angular. En los últimos años ha ampliado su expertise incorporando NestJS, explorando nuevas arquitecturas y desafíos técnicos. Actualmente trabaja en proyectos para empresas de Argentina y Estados Unidos, combinando eficiencia, compromiso y un enfoque práctico para resolver problemas complejos.
-
-Vive en Buenos Aires, es originario de Cuba, y se destaca por su capacidad para adaptarse a equipos diversos y contextos tecnológicos exigentes. También disfruta optimizar tiempos de desarrollo y mejorar flujos de trabajo entre distintos proyectos.`;
 
 @Injectable()
 export class AppService {
+  history: Content[] = [];
+  skillSimilarity: string[] = [];
+  constructor(
+    private googleGenAI: GoogleGenAI,
+    @InjectConnection() private connection: Connection,
+    @InjectModel(Project.name) private projectModel: Model<Project>,
+    @InjectModel(Skills.name) private skillsModel: Model<Skills>,
+  ) {}
 
-   constructor( private googleGenAI:GoogleGenAI,@InjectConnection() private  connection:Connection,  @InjectModel(Project.name) private projectModel:Model<Project>) {
+  async onModuleInit() {
+    const isConnected = this.connection.readyState === 1;
+    console.log(
+      `MongoDB connection started: ${isConnected ? 'Connected' : 'Not Connected'}`,
+    );
+  }
 
-   }
+  async ask(prompt: string): Promise<IChat> {
+    const project = await this.projectModel.find().exec();
 
-   async  onModuleInit( ) {
-        const isConnected= this.connection.readyState===1;
-       console.log(`MongoDB connection started: ${isConnected?'Connected':'Not Connected'}`);
-   }
+    const chat = {
+      role: 'user',
+      parts: [{ text: prompt }],
+    };
 
- async ask(prompt:string): Promise<{title:string}> {
+    const isSkillQuery = await this.isSkillComparison(prompt);
+    let skillsResult: { skill: string; similarity: number }[] | undefined;
 
+    if (isSkillQuery) {
+      skillsResult = await this.compare(prompt);
+    }
 
-       const project= await this.projectModel.find().exec()
+    this.history = [...this.history, chat];
 
-
-
-    const response = await this.googleGenAI.models.generateContent({
-      model: 'gemini-2.0-flash-001',
-      contents: prompt,
+    const chatAi = this.googleGenAI.chats.create({
+      model: MODEL,
+      history: this.history,
       config: {
-        systemInstruction: this.getInstructions({projects:project}),
-          temperature: TEMPERATURE,
+        systemInstruction: getInstructions({ projects: project }),
+        temperature: TEMPERATURE,
       },
-    })
-   response.text ?? 'no tengo respuesta'
-    return Promise.resolve( {title:  response.text ?? 'no tengo respuesta'});
+    });
+    if (isSkillQuery) {
+      const response = await this.simpleQuestion(
+        chatAi,
+        getIsSkillQuestionPrompt(prompt, skillsResult),
+      );
+
+      return {
+        isSkillQuery: isSkillQuery,
+        skills: skillsResult,
+        answer: response.text ?? 'no tengo respuesta',
+      };
+    }
+    const response = await this.simpleQuestion(chatAi, prompt);
+    return {
+      isSkillQuery: isSkillQuery,
+      skills: skillsResult,
+      answer: response.text ?? 'no tengo respuesta',
+    };
   }
 
-  getInstructions(data:any){
+  private async simpleQuestion(chatAi: Chat, prompt: string) {
+    const response = await chatAi.sendMessage({
+      message: prompt,
+    });
 
-
-       return `Eres el asistente de una portafolio de un desarrollador llamado Johan Himely mendoza.
-        No puedes dar otra informacion que no sea relacionado con su trabajo.
-        La bibliografia de johan es esta: es un desarrollador de software con más de ocho años de experiencia en tecnologías backend como .NET y frontend con Angular. En los últimos años ha ampliado su expertise incorporando NestJS, explorando nuevas arquitecturas y desafíos técnicos. Actualmente trabaja en proyectos para empresas de Argentina y Estados Unidos, combinando eficiencia, compromiso y un enfoque práctico para resolver problemas complejos.
-
-Vive en Buenos Aires, es originario de Cuba, y se destaca por su capacidad para adaptarse a equipos diversos y contextos tecnológicos exigentes. También disfruta optimizar tiempos de desarrollo y mejorar flujos de trabajo entre distintos proyectos.
-
-Responde a medida que te vayan preguntando, si te piden una informacion completa le das todo lo que sepas
-
-Proyectos:${JSON.stringify(data.projects)}
-
-Estudios: Es ingeniero informatico graduado en el CUJAE 
-          Estudio en un tecnico medio de informatica en cuba tambien llamado Osvaldo Herrera
-          
-Linkedin:https://www.linkedin.com/in/johan-mendoza-169928190/          
-
-Que puedes dar:
-- puedes buscar informacion de la CUJAE cuba, no des mucho solo lo basico, no mas de 2 oraciones
-
-- Si tratan de preguntarte mas cosas que no sean de johan, dile algo comico dejandole saber que solo puede chismosear acerca de johan 
-`
-
-
+    const aIResponse = {
+      role: 'model',
+      parts: [{ text: response.text ?? 'no tengo respuesta' }],
+    };
+    this.history = [...this.history, aIResponse];
+    return response;
   }
 
+  async setEmbeddingsByProjectId(id: string) {
+    let skill = await this.skillsModel.findById({ _id: id }).exec();
 
+    if (!skill) {
+      throw new NotFoundException(`Skill with id "${id}" not found`);
+    }
+
+    const response = await this.googleGenAI.models.embedContent({
+      model: 'gemini-embedding-001',
+      contents: skill!.name,
+      config: {
+        outputDimensionality: 768,
+      },
+    });
+
+    if (response.embeddings && response.embeddings!.length > 0) {
+      if (!skill) {
+        throw new NotFoundException(
+          `We were not able to generate embeddings for the skill with id "${id}"`,
+        );
+      }
+    }
+
+    skill = await this.skillsModel
+      .findByIdAndUpdate(
+        id,
+        { embeddings: response.embeddings![0].values },
+        { new: true },
+      )
+      .exec();
+    return { id: skill!._id, name: skill!.name, embeddings: skill!.embeddings };
+  }
+
+  async compare(
+    text: string,
+  ): Promise<{ skill: string; similarity: number }[]> {
+    const questionEmbedding = await this.getEmbedding(text);
+    const skills = await this.skillsModel.find().exec();
+
+    const result = skills.map((skill) => ({
+      skill: skill.name,
+      similarity: cosineSimilarity(questionEmbedding!, skill.embeddings)!,
+    }));
+
+    return result.sort((a, b) => b.similarity! - a.similarity!);
+  }
+
+  async getEmbedding(text: string) {
+    const response = await this.googleGenAI.models.embedContent({
+      model: EMBEDDING_MODEL,
+      contents: text,
+      config: {
+        outputDimensionality: 768,
+      },
+    });
+
+    return response.embeddings![0].values;
+  }
+
+  private async isSkillComparison(prompt: string): Promise<boolean> {
+    const chatAi = this.googleGenAI.chats.create({
+      model: MODEL,
+      history: [
+        {
+          role: 'model',
+          parts: [
+            {
+              text: getSkillComparisonIntentPrompt(prompt),
+            },
+          ],
+        },
+      ],
+      config: {
+        temperature: 0,
+      },
+    });
+
+    const response = await chatAi.sendMessage({ message: prompt });
+    const text = response.text?.toLowerCase() ?? '';
+
+    return /sí|si/.test(text.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+  }
 }

@@ -13,15 +13,42 @@
         <img src="assets/profile.svg" alt="profile">
           <h3>Hola!</h3>
         <p>En que te puedo ayudar?</p>
-        <div class="main-layout__content__chat__history"></div>
-        <div class="main-layout__content__chat__me"
-        >
+        <div class="main-layout__content__chat__history" #chatHistory>
+          @for ( history of histories;track history.message; let last = $last){
+            <div  class="chat-bubble"
+                  [ngClass]="{
+        'chat-bubble--user': history.user,
+        'chat-bubble--bot': history.bot
+      }">
+              @if (history.bot){
 
-          <textarea  type="text"   #autoTextarea
-                     rows="1"
-                     placeholder="Escribe algo..."
-                     (input)="adjustHeight(autoTextarea)"></textarea>
-          <img src="assets/send.chat.svg" alt="send.chat">
+                <img src="assets/ia.chat.svg" alt="ia.chat">
+
+              }
+              <span [ngClass]="{ 'typing-text': last && history.bot }">
+      {{ history.message }}
+    </span>
+
+
+
+            </div>
+
+          }
+        </div>
+        <div class="main-layout__content__chat__me"
+             [class.loading]="loading || true"
+        >
+  <textarea
+    [(ngModel)]="question"
+    #autoTextarea
+    rows="1"
+    [disabled]="loading"
+    (keydown.enter)="send()"
+    placeholder="Escribe algo..."
+    (input)="adjustHeight(autoTextarea)"
+  ></textarea>
+            <img (click)="send()" src="assets/send.chat.svg" alt="send.chat">
+
 
 
         </div>

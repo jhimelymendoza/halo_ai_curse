@@ -1,11 +1,12 @@
 import {Component, inject} from '@angular/core';
-import {Router} from '@angular/router';
+import {Router, RouterLink} from '@angular/router';
 import {FormBuilder, FormGroup, ReactiveFormsModule} from '@angular/forms';
 
 @Component({
   selector: 'jdm-home',
   imports: [
-    ReactiveFormsModule
+    ReactiveFormsModule,
+    RouterLink
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss'

@@ -1,0 +1,28 @@
+<div class="main-layout">
+  <div class="main-layout__bg">
+    <div class="main-layout__header">
+      <div class="logo" routerLink="/home">
+        <img src="assets/left.home.svg" alt="" />
+        <span class="text">Johandev</span><span class="dot">.</span
+        ><span class="text">me</span>
+        <img src="assets/right.home.svg" alt="" />
+      </div>
+    </div>
+
+    <div class="main-layout__content">
+
+      <div class="main-layout__content__chat">
+        <div class="timeline-wrapper">
+          <div class="blur-circle"></div>
+
+          <om-timeline
+            [data]="timelineData"
+            [entryGap]="'1rem'"
+            [titleMaxWidth]="'15rem'"
+            [orientation]="'left'"
+          ></om-timeline>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
